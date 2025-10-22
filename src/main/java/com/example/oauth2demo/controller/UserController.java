@@ -26,8 +26,8 @@ public class UserController {
             return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
         }
 
-        CustomOAuth2User customUser = (CustomOAuth2User) principal;
-        UserDTO user = userService.getUserById(customUser.getUserId());
+        Long userId = extractUserId(principal);
+        UserDTO user = userService.getUserById(userId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("authenticated", true);
@@ -45,8 +45,8 @@ public class UserController {
             return ResponseEntity.status(401).build();
         }
 
-        CustomOAuth2User customUser = (CustomOAuth2User) principal;
-        UserDTO updatedUser = userService.updateProfile(customUser.getUserId(), request);
+        Long userId = extractUserId(principal);
+        UserDTO updatedUser = userService.updateProfile(userId, request);
 
         return ResponseEntity.ok(updatedUser);
     }
@@ -57,11 +57,18 @@ public class UserController {
         response.put("authenticated", principal != null);
 
         if (principal != null) {
-            CustomOAuth2User customUser = (CustomOAuth2User) principal;
-            UserDTO user = userService.getUserById(customUser.getUserId());
+            Long userId = extractUserId(principal);
+            UserDTO user = userService.getUserById(userId);
             response.put("user", user);
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    private Long extractUserId(OAuth2User principal) {
+        if (principal instanceof CustomOAuth2User) {
+            return ((CustomOAuth2User) principal).getUserId();
+        }
+        throw new IllegalStateException("Unexpected OAuth2User type: " + principal.getClass().getName());
     }
 }

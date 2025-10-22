@@ -32,6 +32,7 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo
                                 .userService(customOAuth2UserService)
+                                .oidcUserService(request -> (org.springframework.security.oauth2.core.oidc.user.OidcUser) customOAuth2UserService.loadUser(request))
                         )
                         .defaultSuccessUrl("http://localhost:3000/dashboard", true)
                         .failureUrl("http://localhost:3000/login?error=true")

@@ -8,14 +8,33 @@ const App = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [csrfToken, setCsrfToken] = useState('');
   const [formData, setFormData] = useState({
     displayName: '',
     bio: ''
   });
 
   useEffect(() => {
+    fetchCsrfToken();
     checkAuthStatus();
   }, []);
+
+  const fetchCsrfToken = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/csrf`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      setCsrfToken(data.token);
+    } catch (error) {
+      console.error('Failed to fetch CSRF token:', error);
+    }
+  };
+
+  const getCsrfTokenFromCookie = () => {
+    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+    return match ? match[1] : csrfToken;
+  };
 
   const checkAuthStatus = async () => {
     try {
@@ -55,10 +74,12 @@ const App = () => {
 
   const handleSaveProfile = async () => {
     try {
+      const token = getCsrfTokenFromCookie();
       const response = await fetch(`${API_BASE_URL}/profile`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': token
         },
         credentials: 'include',
         body: JSON.stringify(formData)
@@ -98,8 +119,8 @@ const App = () => {
             <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4">
               <User className="w-8 h-8 text-indigo-600" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
-            <p className="text-gray-600">Sign in to continue to your account</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome</h1>
+            <p className="text-gray-600">Log in to continue to your account</p>
           </div>
 
           <div className="space-y-3">

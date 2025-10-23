@@ -6,33 +6,32 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
-@Table(name = "users")
+@Table(name = "auth_providers",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"provider", "provider_user_id"}))
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class AuthProvider {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
-    private String email;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    @Column(name = "display_name")
-    private String displayName;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Provider provider;
 
-    private String avatarUrl;
+    @Column(name = "provider_user_id", nullable = false)
+    private String providerUserId;
 
-    @Column(length = 500)
-    private String bio;
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<AuthProvider> authProviders = new ArrayList<>();
+    @Column(name = "provider_email")
+    private String providerEmail;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -49,5 +48,10 @@ public class User {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    public enum Provider {
+        GOOGLE,
+        GITHUB
     }
 }

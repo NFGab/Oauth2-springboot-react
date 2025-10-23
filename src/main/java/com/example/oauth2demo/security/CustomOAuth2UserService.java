@@ -1,6 +1,8 @@
 package com.example.oauth2demo.security;
 
+import com.example.oauth2demo.entity.AuthProvider;
 import com.example.oauth2demo.entity.User;
+import com.example.oauth2demo.repository.AuthProviderRepository;
 import com.example.oauth2demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
@@ -9,9 +11,9 @@ import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserServ
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 
@@ -20,10 +22,12 @@ import java.util.Map;
 public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
 
     private final UserRepository userRepository;
+    private final AuthProviderRepository authProviderRepository;
     private final DefaultOAuth2UserService defaultOAuth2UserService = new DefaultOAuth2UserService();
     private final OidcUserService oidcUserService = new OidcUserService();
 
     @Override
+    @Transactional
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
         OAuth2User oauth2User;
 
@@ -42,19 +46,21 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
         return new CustomOAuth2User(oauth2User, user.getId());
     }
 
-    private User processOAuth2User(String provider, Map<String, Object> attributes) {
-        String providerId;
+    private User processOAuth2User(String providerStr, Map<String, Object> attributes) {
+        AuthProvider.Provider provider = AuthProvider.Provider.valueOf(providerStr.toUpperCase());
+
+        String providerUserId;
         String email;
         String name;
         String avatarUrl;
 
-        if ("google".equals(provider)) {
-            providerId = (String) attributes.get("sub");
+        if (provider == AuthProvider.Provider.GOOGLE) {
+            providerUserId = (String) attributes.get("sub");
             email = (String) attributes.get("email");
             name = (String) attributes.get("name");
             avatarUrl = (String) attributes.get("picture");
-        } else if ("github".equals(provider)) {
-            providerId = String.valueOf(attributes.get("id"));
+        } else if (provider == AuthProvider.Provider.GITHUB) {
+            providerUserId = String.valueOf(attributes.get("id"));
             email = (String) attributes.get("email");
             name = (String) attributes.get("name");
             avatarUrl = (String) attributes.get("avatar_url");
@@ -67,18 +73,43 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
             throw new OAuth2AuthenticationException("Unsupported provider: " + provider);
         }
 
-        // Check if user exists
+        // Check if this auth provider already exists
         String finalEmail = email;
-        return userRepository.findByProviderAndProviderId(provider, providerId)
+        String finalEmail1 = email;
+        return authProviderRepository.findByProviderAndProviderUserId(provider, providerUserId)
+                .map(authProvider -> {
+                    // Update provider email if changed
+                    authProvider.setProviderEmail(finalEmail);
+                    authProviderRepository.save(authProvider);
+                    return authProvider.getUser();
+                })
                 .orElseGet(() -> {
-                    // Create new user
-                    User newUser = new User();
-                    newUser.setEmail(finalEmail);
-                    newUser.setName(name);
-                    newUser.setAvatarUrl(avatarUrl);
-                    newUser.setProvider(provider);
-                    newUser.setProviderId(providerId);
-                    return userRepository.save(newUser);
+                    // Check if user exists with same email
+                    User user = userRepository.findByEmail(finalEmail1)
+                            .orElseGet(() -> {
+                                // Create new user
+                                User newUser = new User();
+                                newUser.setEmail(finalEmail1);
+                                newUser.setDisplayName(name);
+                                newUser.setAvatarUrl(avatarUrl);
+                                return userRepository.save(newUser);
+                            });
+
+                    // Create new auth provider link
+                    AuthProvider authProvider = new AuthProvider();
+                    authProvider.setUser(user);
+                    authProvider.setProvider(provider);
+                    authProvider.setProviderUserId(providerUserId);
+                    authProvider.setProviderEmail(finalEmail1);
+                    authProviderRepository.save(authProvider);
+
+                    // Update user's avatar if not set
+                    if (user.getAvatarUrl() == null) {
+                        user.setAvatarUrl(avatarUrl);
+                        userRepository.save(user);
+                    }
+
+                    return user;
                 });
     }
 }

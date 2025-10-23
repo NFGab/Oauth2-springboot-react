@@ -36,8 +36,35 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/user/profile")
+    @GetMapping("/profile")
+    public ResponseEntity<UserDTO> getProfile(@AuthenticationPrincipal OAuth2User principal) {
+        if (principal == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        Long userId = extractUserId(principal);
+        UserDTO user = userService.getUserById(userId);
+
+        return ResponseEntity.ok(user);
+    }
+
+    @PostMapping("/profile")
     public ResponseEntity<UserDTO> updateProfile(
+            @AuthenticationPrincipal OAuth2User principal,
+            @RequestBody UpdateProfileRequest request) {
+
+        if (principal == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        Long userId = extractUserId(principal);
+        UserDTO updatedUser = userService.updateProfile(userId, request);
+
+        return ResponseEntity.ok(updatedUser);
+    }
+
+    @PutMapping("/user/profile")
+    public ResponseEntity<UserDTO> updateProfileLegacy(
             @AuthenticationPrincipal OAuth2User principal,
             @RequestBody UpdateProfileRequest request) {
 
